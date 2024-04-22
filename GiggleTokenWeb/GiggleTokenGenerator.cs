@@ -41,7 +41,7 @@ public static class GiggleTokenGenerator
             case TokenLength.Length156:
             {
                 Span<byte> hashBytes = stackalloc byte[Sha256Hasher.HashSize / 8];
-                Sha256Hasher.TryComputeHash(inputBytes.Slice(0, inputBytesSize-1), hashBytes, out int bytesWrittenSha256);
+                Sha256Hasher.TryComputeHash(inputBytes[..(inputBytesSize-1)], hashBytes, out int bytesWrittenSha256);
                 for (int i = 0; i < bytesWrittenSha256; i++)
                 {
                     byte b = hashBytes[i];
@@ -52,7 +52,7 @@ public static class GiggleTokenGenerator
                 break;
             }
             case TokenLength.Length112:
-                ConvertToUpperInvariant(inputBytes.Slice(0, charsWritten), hexSpan);
+                ConvertToUpperInvariant(inputBytes[..charsWritten], hexSpan);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(tokenLength), $"Not expected token length value: {tokenLength}");
@@ -63,9 +63,9 @@ public static class GiggleTokenGenerator
         Span<byte> suffix = stackalloc byte[clientIdBytes.Length + hexSpan.Length + clientSecretBytes.Length + 2];
         hexSpan.CopyTo(suffix);
         suffix[hexSpan.Length] = 58; // :
-        clientIdBytes.CopyTo(suffix.Slice(hexSpan.Length+1));
+        clientIdBytes.CopyTo(suffix[(hexSpan.Length+1)..]);
         suffix[hexSpan.Length + 1 + clientIdBytes.Length] = 58; // :
-        clientSecretBytes.CopyTo(suffix.Slice(clientIdBytes.Length + hexSpan.Length + 2));
+        clientSecretBytes.CopyTo(suffix[(clientIdBytes.Length + hexSpan.Length + 2)..]);
         
         
         Span<byte> suffixHash = stackalloc byte[20];
@@ -84,11 +84,11 @@ public static class GiggleTokenGenerator
         var currentPos = hexSpan.Length;
         finalToken[currentPos] = 95; // _
         currentPos++;
-        clientIdBytes.CopyTo(finalToken.Slice(currentPos));
+        clientIdBytes.CopyTo(finalToken[currentPos..]);
         currentPos += clientIdBytes.Length;
         finalToken[currentPos] = 58; // :
         currentPos++;
-        suffixHashHex.CopyTo(finalToken.Slice(currentPos));
+        suffixHashHex.CopyTo(finalToken[currentPos..]);
         
         return Convert.ToBase64String(finalToken);
     }

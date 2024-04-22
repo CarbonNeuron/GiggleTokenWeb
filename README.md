@@ -4,6 +4,8 @@ Computes tokens with only ~300B allocated and 500ns per generation.
 
 You can grab the docker image at `carbonneuron/giggletokenweb:latest`
 
+I am hosting a publically accessible instance at https://ifunnytoken.carbun.xyz/tokens
+
 Compute tokens at 
 http://`{IP}`:8080/tokens
 

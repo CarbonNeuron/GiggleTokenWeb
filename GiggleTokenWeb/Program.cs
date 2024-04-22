@@ -1,4 +1,9 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json.Serialization;
+using GiggleTokenWeb;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
@@ -9,27 +14,86 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 var app = builder.Build();
 
-var sampleTodos = new Todo[] {
-    new(1, "Walk the dog"),
-    new(2, "Do the dishes", DateOnly.FromDateTime(DateTime.Now)),
-    new(3, "Do the laundry", DateOnly.FromDateTime(DateTime.Now.AddDays(1))),
-    new(4, "Clean the bathroom"),
-    new(5, "Clean the car", DateOnly.FromDateTime(DateTime.Now.AddDays(2)))
-};
+var tokensApi = app.MapGroup("/tokens");
+tokensApi.MapGet("/{installationID:guid?}", async (HttpContext http, Guid? installationID, int length = 156) =>
+{
+    installationID ??= Guid.NewGuid();
+    
+    var tokenLength = TokenLength.Length156;
+    if (length == 112)
+    {
+        tokenLength = TokenLength.Length112;
+    }
+    var token = GiggleTokenGenerator.Create(installationID.Value, tokenLength);
+    
+    
+    var acceptHeader = http.Request.Headers["Accept"].ToString();
 
-var todosApi = app.MapGroup("/todos");
-todosApi.MapGet("/", () => sampleTodos);
-todosApi.MapGet("/{id}", (int id) =>
-    sampleTodos.FirstOrDefault(a => a.Id == id) is { } todo
-        ? Results.Ok(todo)
-        : Results.NotFound());
+    // Default to plain text if no specific header is found or it contains 'text/plain'
+    bool acceptJson = acceptHeader.Contains("application/json");
+
+    if (acceptJson)
+    {
+
+        // Serializing list to JSON and returning it
+        http.Response.ContentType = "application/json";
+        await http.Response.WriteAsJsonAsync(token, typeof(string), AppJsonSerializerContext.Default);
+    }
+    else
+    {
+        // Returning tokens as plain text
+        http.Response.ContentType = "text/plain";
+        await http.Response.WriteAsync(token);
+    }
+});
+tokensApi.MapGet("/{num:int:min(0):max(1000000)}", async (
+    HttpContext http,
+    int num,
+    int length = 156
+    ) =>
+{
+    var tokenLength = TokenLength.Length156;
+    if (length == 112)
+    {
+        tokenLength = TokenLength.Length112;
+    }
+    var tokens = new ConcurrentBag<string>();
+    Parallel.For(0, num, i =>
+    {
+        var guid = Guid.NewGuid();
+        var token = GiggleTokenGenerator.Create(guid, tokenLength);
+        tokens.Add(token);
+    });
+    
+    var acceptHeader = http.Request.Headers["Accept"].ToString();
+
+    // Default to plain text if no specific header is found or it contains 'text/plain'
+    bool acceptJson = acceptHeader.Contains("application/json");
+
+    if (acceptJson)
+    {
+
+        // Serializing list to JSON and returning it
+        http.Response.ContentType = "application/json";
+        await http.Response.WriteAsJsonAsync(tokens.ToArray(), typeof(string[]), AppJsonSerializerContext.Default);
+    }
+    else
+    {
+        // Returning tokens as plain text
+        http.Response.ContentType = "text/plain";
+        foreach (var token in tokens)
+        {
+            await http.Response.WriteAsync(token+"\n");
+        }
+        
+    }
+});
 
 app.Run();
 
-public record Todo(int Id, string? Title, DateOnly? DueBy = null, bool IsComplete = false);
 
-[JsonSerializable(typeof(Todo[]))]
+
+[JsonSerializable(typeof(string[]))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext
 {
-
 }
